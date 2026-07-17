@@ -21,7 +21,7 @@ const supportedDomains = [
 module.exports = {
   config: {
     name: "autodl",
-    version: "2.0",
+    version: "2.1",
     author: "Saimx69x",
     role: 0,
     shortDescription: "All-in-one video/media downloader",
@@ -70,15 +70,9 @@ module.exports = {
       const platformName = domain.replace(/(\.com|\.app|\.video|\.net)/, "").toUpperCase();
 
       const infoCard = 
-`━━━━━━━━━━━━━━
-𝐌𝐞𝐝𝐢𝐚 𝐃𝐨𝐰𝐧𝐥𝐨𝐚𝐝𝐞𝐝 ✅
-╭─╼━━━━━━━━╾─╮
-│ Title      : ${mediaTitle}
-│ Platform   : ${platformName}
-│ Status     : Success
-╰─━━━━━━━━━╾─╯
-━━━━━━━━━━━━━━
-Made with ❤️ by Saimx69x.`;
+        `╭──${platformName}──⬣\n` +
+        `│ 𝐌𝐚𝐝𝐞 𝐰𝐢𝐭𝐡 🤍 𝐛𝐲 --𝔐𝔯.𝔎𝔦𝔫𝔤\n` +
+        `╰────────────────⬣`;
 
       api.sendMessage(
         { body: infoCard, attachment: fs.createReadStream(filePath) },
