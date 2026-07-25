@@ -1,5 +1,3 @@
-// Banner Image: https://files.catbox.moe/ixj7u8.jpg
-
 const axios = require("axios");
 const { getPrefix } = global.utils;
 const { commands } = global.GoatBot;
@@ -54,76 +52,109 @@ function findCommand(name) {
   return null;
 }
 
+/* ───── Auto Unsend Helper ───── */
+function sendAutoDeleteMessage(api, message, content) {
+  return message.reply(content, (err, info) => {
+    if (!err && info && info.messageID) {
+      setTimeout(() => {
+        if (api.unsendMessage) {
+          api.unsendMessage(info.messageID);
+        }
+      }, 20000);
+    }
+  });
+}
+
 module.exports = {
   config: {
     name: "help",
     aliases: ["menu"],
-    version: "2.0",
-    author: "Saimx69x | fixed by Aphelion",
+    version: "2.2.0",
+    author: "Saimx69x | fixed by Aphelion & Mr.King",
     role: 0,
     category: "info",
-    shortDescription: "Show all commands",
-    guide: "{pn} | {pn} <command> | {pn} -c <category>"
+    shortDescription: "Show all commands with pagination (Auto Delete in 20s)",
+    guide: "{pn} | {pn} <page_number> | {pn} <command> | {pn} -c <category>"
   },
 
-  onStart: async function ({ message, args, event, role }) {
+  onStart: async function ({ api, message, args, event, role }) {
     if (!xfont || !yfont || !categoryEmoji) await loadResources();
 
     const prefix = getPrefix(event.threadID);
     const input = args.join(" ").trim();
 
-    /* ───── Collect Categories ───── */
+    /* ───── Collect Commands & Categories ───── */
     const categories = {};
+    const allAllowedCmds = [];
+
     for (const [name, cmd] of commands) {
       if (!cmd?.config || cmd.config.role > role) continue;
       const cat = (cmd.config.category || "UNCATEGORIZED").toUpperCase();
       if (!categories[cat]) categories[cat] = [];
-      categories[cat].push(name);
+      categories[cat].push({ name, cat });
+      allAllowedCmds.push({ name, cat });
     }
+
+    allAllowedCmds.sort((a, b) => a.name.localeCompare(b.name));
 
     /* ───── Category View ───── */
     if (args[0] === "-c" && args[1]) {
       const cat = args[1].toUpperCase();
       if (!categories[cat])
-        return message.reply(`❌ Category "${cat}" not found`);
+        return sendAutoDeleteMessage(api, message, `❌ Category "${cat}" not found`);
 
-      let msg = `━━━━━━━━━━━━━━\n`;
+      let msg = `✨ ───────────────── ✨\n`;
       msg += `📂 ${getCategoryEmoji(cat)} ${fontConvert(cat, "category")}\n`;
-      msg += `━━━━━━━━━━━━━━\n`;
+      msg += `✨ ───────────────── ✨\n\n`;
 
-      for (const c of categories[cat].sort())
-        msg += `• ${fontConvert(c)}\n`;
+      for (const item of categories[cat].sort((a, b) => a.name.localeCompare(b.name)))
+        msg += ` 🌸 • ${fontConvert(item.name)}\n`;
 
-      msg += `━━━━━━━━━━━━━━\n`;
-      msg += `🔢 Total: ${categories[cat].length}\n`;
-      msg += `⚡ Prefix: ${prefix}`;
+      msg += `\n✨ ───────────────── ✨\n`;
+      msg += `📊 Total: ${categories[cat].length} Commands\n`;
+      msg += `⚡ Prefix: ${prefix}\n`;
+      msg += `⏳ Auto deleting in 20 seconds...`;
 
-      return message.reply(msg);
+      return sendAutoDeleteMessage(api, message, msg);
     }
 
-    /* ───── Main Menu ───── */
-    if (!input) {
-      let msg = `━━━━━━━━━━━━━━\n📜 COMMAND LIST\n━━━━━━━━━━━━━━\n`;
+    /* ───── Pagination Check ───── */
+    const isNum = !isNaN(args[0]) && args[0].trim() !== "";
+    if (!input || isNum) {
+      const page = isNum ? parseInt(args[0]) : 1;
+      const limit = 10;
+      const totalCmds = allAllowedCmds.length;
+      const totalPages = Math.ceil(totalCmds / limit);
 
-      for (const cat of Object.keys(categories).sort()) {
-        msg += `\n${getCategoryEmoji(cat)} ${fontConvert(cat, "category")}\n`;
-        for (const c of categories[cat].sort())
-          msg += `  • ${fontConvert(c)}\n`;
+      if (page < 1 || page > totalPages) {
+        return sendAutoDeleteMessage(api, message, `❌ Invalid Page Number! Page must be between 1 and ${totalPages}.`);
       }
 
-      const total = Object.values(categories).reduce((a, b) => a + b.length, 0);
+      const start = (page - 1) * limit;
+      const pageCmds = allAllowedCmds.slice(start, start + limit);
 
-      msg += `\n━━━━━━━━━━━━━━\n`;
-      msg += `🔢 Total Commands: ${total}\n`;
-      msg += `⚡ Prefix: ${prefix}\n`;
-      msg += `👑 Owner: 𝔐𝔯.𝔎𝔦𝔫𝔤`;
+      let msg = `✨ ─── 『 ₘₑₙᵤ CₒₘₘₐₙDₛ 』 ─── ✨\n\n`;
 
-      return message.reply(msg);
+      pageCmds.forEach((item, idx) => {
+        const catEmoji = getCategoryEmoji(item.cat);
+        msg += ` [${start + idx + 1}] ${catEmoji} ${fontConvert(item.name)}\n`;
+      });
+
+      msg += `\n✨ ───────────────── ✨\n`;
+      msg += `📖 Page : ${page}/${totalPages}\n`;
+      msg += `📊 Total Commands : ${totalCmds}\n`;
+      msg += `💡 Type : ${prefix}help <page>\n`;
+      msg += `⚡ Prefix : ${prefix}\n`;
+      msg += `👤 Maintainer : 𝔐𝔯.𝔎𝔦𝔫𝔤 ☠️✌🏼\n`;
+      msg += `⏳ Auto deleting in 20 seconds...\n`;
+      msg += `✨ ───────────────── ✨`;
+
+      return sendAutoDeleteMessage(api, message, msg);
     }
 
     /* ───── Command Info ───── */
     const cmd = findCommand(input);
-    if (!cmd) return message.reply(`❌ Command "${input}" not found`);
+    if (!cmd) return sendAutoDeleteMessage(api, message, `❌ Command "${input}" not found`);
 
     const c = cmd.config;
     const aliasText = Array.isArray(c.aliases)
@@ -151,8 +182,9 @@ module.exports = {
 ⏱️ Cooldown : ${c.countDown || 5}s
 👑 Author : ${c.author || "Unknown"}
 📖 Usage : ${usage}
+⏳ Auto deleting in 20 seconds...
 ╰───────────────────╯`;
 
-    return message.reply(msg);
+    return sendAutoDeleteMessage(api, message, msg);
   }
 };
