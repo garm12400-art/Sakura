@@ -2,14 +2,14 @@ const axios = require('axios');
 
 module.exports = {
     config: {
-        name: "scriptslink",
+        name: "scriptlink",
         version: "1.4.0",
         author: "Mr.King",
         countDown: 5,
         role: 0, 
         description: "Fetch and display script links and code stylishly with a live countdown timer.",
         category: "utility",
-        guide: "{p}scriptslink <script_name.js>"
+        guide: "{p}scriptlink <script_name.js>"
     },
 
     onStart: async function ({ api, event, args, message }) {
