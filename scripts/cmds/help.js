@@ -1,37 +1,8 @@
-const axios = require("axios");
+const { createCanvas } = require("canvas");
+const fs = require("fs-extra");
+const path = require("path");
 const { getPrefix } = global.utils;
 const { commands } = global.GoatBot;
-
-let xfont = null;
-let yfont = null;
-let categoryEmoji = null;
-
-/* ───── Load Fonts & Emoji ───── */
-async function loadResources() {
-  try {
-    const [x, y, c] = await Promise.all([
-      axios.get("https://raw.githubusercontent.com/Saim-x69x/sakura/main/xfont.json"),
-      axios.get("https://raw.githubusercontent.com/Saim-x69x/sakura/main/yfont.json"),
-      axios.get("https://raw.githubusercontent.com/Saim-x69x/sakura/main/category.json")
-    ]);
-    xfont = x.data;
-    yfont = y.data;
-    categoryEmoji = c.data;
-  } catch (e) {
-    console.error("[HELP] Resource load failed");
-  }
-}
-
-/* ───── Font Convert ───── */
-function fontConvert(text, type = "command") {
-  const map = type === "category" ? xfont : yfont;
-  if (!map) return text;
-  return text.split("").map(c => map[c] || c).join("");
-}
-
-function getCategoryEmoji(cat) {
-  return categoryEmoji?.[cat.toLowerCase()] || "🗂️";
-}
 
 function roleText(role) {
   if (role === 0) return "All Users";
@@ -40,7 +11,6 @@ function roleText(role) {
   return "Unknown";
 }
 
-/* ───── Command Find ───── */
 function findCommand(name) {
   name = name.toLowerCase();
   for (const [, cmd] of commands) {
@@ -52,15 +22,107 @@ function findCommand(name) {
   return null;
 }
 
-/* ───── Auto Unsend Helper ───── */
+async function renderHelpImage(categories, page, totalPages, totalCmds, prefix) {
+  const width = 1200;
+  const height = 1500;
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+
+  // Background
+  const gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, "#080614");
+  gradient.addColorStop(0.5, "#0d0a26");
+  gradient.addColorStop(1, "#05030a");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+
+  // Outer Border
+  ctx.strokeStyle = "#8b5cf6";
+  ctx.lineWidth = 6;
+  ctx.strokeRect(30, 30, width - 60, height - 60);
+
+  // Header Title
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 52px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("MISS QUEEN TERMINAL", width / 2, 110);
+
+  ctx.fillStyle = "#a855f7";
+  ctx.font = "bold 28px sans-serif";
+  ctx.fillText("✿ Command Matrix ✿", width / 2, 155);
+
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "22px sans-serif";
+  ctx.fillText(`Page ${page}/${totalPages}  •  ${totalCmds} commands total`, width / 2, 195);
+
+  // Divider Line
+  ctx.strokeStyle = "#334155";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(60, 220);
+  ctx.lineTo(width - 60, 220);
+  ctx.stroke();
+
+  // Columns Layout (3 Columns)
+  const colWidth = 350;
+  const startX = 65;
+  const startY = 260;
+  const colGap = 20;
+
+  const catNames = Object.keys(categories);
+  const itemsPerPage = 6; 
+  const pageCats = catNames.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+
+  pageCats.forEach((cat, index) => {
+    const col = index % 3;
+    const row = Math.floor(index / 3);
+    const x = startX + col * (colWidth + colGap);
+    const y = startY + row * 550;
+
+    // Category Header
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#38bdf8";
+    ctx.font = "bold 26px sans-serif";
+    ctx.fillText(`⭔ ${cat}`, x, y);
+
+    // Commands under category
+    const cmds = categories[cat].slice(0, 14); 
+    cmds.forEach((cmd, cIdx) => {
+      ctx.fillStyle = "#cbd5e1";
+      ctx.font = "20px sans-serif";
+      ctx.fillText(` ✧ ${cmd}`, x + 10, y + 35 + cIdx * 34);
+    });
+  });
+
+  // Footer Info
+  ctx.strokeStyle = "#334155";
+  ctx.beginPath();
+  ctx.moveTo(60, height - 130);
+  ctx.lineTo(width - 60, height - 130);
+  ctx.stroke();
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#e2e8f0";
+  ctx.font = "22px sans-serif";
+  ctx.fillText(` Reply with a number (1-${totalPages}) to jump to that page`, width / 2, height - 85);
+
+  ctx.fillStyle = "#c084fc";
+  ctx.font = "bold 24px sans-serif";
+  ctx.fillText(`✦ MAINTAINER — Mr.King ☠️✌🏼  •  Prefix: ${prefix} ✦`, width / 2, height - 45);
+
+  const cachePath = path.join(__dirname, "cache", `help_${Date.now()}.png`);
+  if (!fs.existsSync(path.dirname(cachePath))) fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+
+  fs.writeFileSync(cachePath, canvas.toBuffer());
+  return cachePath;
+}
+
 function sendAutoDeleteMessage(api, message, content) {
   return message.reply(content, (err, info) => {
     if (!err && info && info.messageID) {
       setTimeout(() => {
-        if (api.unsendMessage) {
-          api.unsendMessage(info.messageID);
-        }
-      }, 20000);
+        if (api.unsendMessage) api.unsendMessage(info.messageID);
+      }, 120000);
     }
   });
 }
@@ -69,122 +131,128 @@ module.exports = {
   config: {
     name: "help",
     aliases: ["menu"],
-    version: "2.2.0",
-    author: "Saimx69x | fixed by Aphelion & Mr.King",
+    version: "3.2.0",
+    author: "Mr.King",
     role: 0,
     category: "info",
-    shortDescription: "Show all commands with pagination (Auto Delete in 20s)",
-    guide: "{pn} | {pn} <page_number> | {pn} <command> | {pn} -c <category>"
+    shortDescription: "Show all commands in terminal banner format (Auto delete in 2 minutes)",
+    guide: "{pn} | {pn} <page_number> | {pn} <command>"
   },
 
   onStart: async function ({ api, message, args, event, role }) {
-    if (!xfont || !yfont || !categoryEmoji) await loadResources();
-
     const prefix = getPrefix(event.threadID);
     const input = args.join(" ").trim();
 
-    /* ───── Collect Commands & Categories ───── */
     const categories = {};
-    const allAllowedCmds = [];
+    let totalCmds = 0;
 
     for (const [name, cmd] of commands) {
       if (!cmd?.config || cmd.config.role > role) continue;
       const cat = (cmd.config.category || "UNCATEGORIZED").toUpperCase();
       if (!categories[cat]) categories[cat] = [];
-      categories[cat].push({ name, cat });
-      allAllowedCmds.push({ name, cat });
+      categories[cat].push(name);
+      totalCmds++;
     }
 
-    allAllowedCmds.sort((a, b) => a.name.localeCompare(b.name));
+    const catNames = Object.keys(categories);
+    const totalPages = Math.ceil(catNames.length / 6) || 1;
 
-    /* ───── Category View ───── */
-    if (args[0] === "-c" && args[1]) {
-      const cat = args[1].toUpperCase();
-      if (!categories[cat])
-        return sendAutoDeleteMessage(api, message, `❌ Category "${cat}" not found`);
+    /* ───── Command Details View (Style 12 - Superscript Soft) ───── */
+    if (input && isNaN(input)) {
+      const cmd = findCommand(input);
+      if (!cmd) return sendAutoDeleteMessage(api, message, `❌ Command "${input}" not found!`);
 
-      let msg = `✨ ───────────────── ✨\n`;
-      msg += `📂 ${getCategoryEmoji(cat)} ${fontConvert(cat, "category")}\n`;
-      msg += `✨ ───────────────── ✨\n\n`;
-
-      for (const item of categories[cat].sort((a, b) => a.name.localeCompare(b.name)))
-        msg += ` 🌸 • ${fontConvert(item.name)}\n`;
-
-      msg += `\n✨ ───────────────── ✨\n`;
-      msg += `📊 Total: ${categories[cat].length} Commands\n`;
-      msg += `⚡ Prefix: ${prefix}\n`;
-      msg += `⏳ Auto deleting in 20 seconds...`;
-
-      return sendAutoDeleteMessage(api, message, msg);
-    }
-
-    /* ───── Pagination Check ───── */
-    const isNum = !isNaN(args[0]) && args[0].trim() !== "";
-    if (!input || isNum) {
-      const page = isNum ? parseInt(args[0]) : 1;
-      const limit = 10;
-      const totalCmds = allAllowedCmds.length;
-      const totalPages = Math.ceil(totalCmds / limit);
-
-      if (page < 1 || page > totalPages) {
-        return sendAutoDeleteMessage(api, message, `❌ Invalid Page Number! Page must be between 1 and ${totalPages}.`);
+      const c = cmd.config;
+      const aliasText = Array.isArray(c.aliases) ? c.aliases.join(", ") : c.aliases || "None";
+      
+      let usage = c.guide?.en || c.guide || "No usage provided";
+      if (typeof usage === "string") {
+        usage = usage.replace(/{pn}/g, `${prefix}${c.name}`);
       }
 
-      const start = (page - 1) * limit;
-      const pageCmds = allAllowedCmds.slice(start, start + limit);
+      const infoMsg = 
+`╭───『 COMMAND DETAILS 』─╮
+│
+├─ ᴺᵃᵐᵉ : ${c.name}
+├─ ᶜᵃᵗᵉᵍᵒʳʸ : ${(c.category || "UNCATEGORIZED").toUpperCase()}
+├─ ᴰᵉˢᶜʳⁱᵖᵗⁱᵒⁿ : ${c.shortDescription || "N/A"}
+├─ ᴬˡⁱᵃˢᵉˢ : ${aliasText}
+├─ ᵛᵉʳˢⁱᵒⁿ : ${c.version || "1.0"}
+├─ ᴾᵉʳᵐⁱˢˢⁱᵒⁿ : ${roleText(c.role)}
+├─ ᶜᵒᵒˡᵈᵒʷⁿ : ${c.countDown || 5}s
+├─ ᴬᵘᵗʰᵒʳ : ${c.author || "Unknown"}
+└─ ᵁˢᵃᵍᵉ : ${usage}
 
-      let msg = `✨ ─── 『 ₘₑₙᵤ CₒₘₘₐₙDₛ 』 ─── ✨\n\n`;
+⏳ Auto deleting in 2 minutes...
+╰──────────────────╯`;
 
-      pageCmds.forEach((item, idx) => {
-        const catEmoji = getCategoryEmoji(item.cat);
-        msg += ` [${start + idx + 1}] ${catEmoji} ${fontConvert(item.name)}\n`;
-      });
-
-      msg += `\n✨ ───────────────── ✨\n`;
-      msg += `📖 Page : ${page}/${totalPages}\n`;
-      msg += `📊 Total Commands : ${totalCmds}\n`;
-      msg += `💡 Type : ${prefix}help <page>\n`;
-      msg += `⚡ Prefix : ${prefix}\n`;
-      msg += `👤 Maintainer : 𝔐𝔯.𝔎𝔦𝔫𝔤 ☠️✌🏼\n`;
-      msg += `⏳ Auto deleting in 20 seconds...\n`;
-      msg += `✨ ───────────────── ✨`;
-
-      return sendAutoDeleteMessage(api, message, msg);
+      return sendAutoDeleteMessage(api, message, infoMsg);
     }
 
-    /* ───── Command Info ───── */
-    const cmd = findCommand(input);
-    if (!cmd) return sendAutoDeleteMessage(api, message, `❌ Command "${input}" not found`);
+    /* ───── Pagination Image View ───── */
+    let page = parseInt(input) || 1;
+    if (page < 1 || page > totalPages) page = 1;
 
-    const c = cmd.config;
-    const aliasText = Array.isArray(c.aliases)
-      ? c.aliases.join(", ")
-      : c.aliases || "None";
+    const imgPath = await renderHelpImage(categories, page, totalPages, totalCmds, prefix);
 
-    let usage = "No usage";
-    if (c.guide) {
-      if (typeof c.guide === "string") {
-        usage = c.guide;
-      } else if (typeof c.guide === "object") {
-        usage = c.guide.en || Object.values(c.guide)[0] || "No usage";
+    return message.reply({
+      attachment: fs.createReadStream(imgPath)
+    }, (err, info) => {
+      if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
+
+      if (!err && info) {
+        global.GoatBot.onReply.set(info.messageID, {
+          commandName: "help",
+          messageID: info.messageID,
+          author: event.senderID,
+          totalPages: totalPages
+        });
+
+        setTimeout(() => {
+          if (api.unsendMessage) api.unsendMessage(info.messageID);
+        }, 120000);
       }
-      usage = usage.replace(/{pn}/g, `${prefix}${c.name}`);
+    });
+  },
+
+  onReply: async function ({ api, message, event, Reply }) {
+    if (event.senderID !== Reply.author) return;
+
+    const page = parseInt(event.body.trim());
+    if (isNaN(page) || page < 1 || page > Reply.totalPages) return;
+
+    const prefix = getPrefix(event.threadID);
+    const categories = {};
+    let totalCmds = 0;
+
+    for (const [name, cmd] of commands) {
+      if (!cmd?.config) continue;
+      const cat = (cmd.config.category || "UNCATEGORIZED").toUpperCase();
+      if (!categories[cat]) categories[cat] = [];
+      categories[cat].push(name);
+      totalCmds++;
     }
 
-    const msg = `
-╭─── COMMAND INFO ───╮
-🔹 Name : ${c.name}
-📂 Category : ${(c.category || "UNCATEGORIZED").toUpperCase()}
-📜 Description : ${c.longDescription || c.shortDescription || "N/A"}
-🔁 Aliases : ${aliasText}
-⚙️ Version : ${c.version || "1.0"}
-🔐 Permission : ${roleText(c.role)}
-⏱️ Cooldown : ${c.countDown || 5}s
-👑 Author : ${c.author || "Unknown"}
-📖 Usage : ${usage}
-⏳ Auto deleting in 20 seconds...
-╰───────────────────╯`;
+    const imgPath = await renderHelpImage(categories, page, Reply.totalPages, totalCmds, prefix);
 
-    return sendAutoDeleteMessage(api, message, msg);
+    return message.reply({
+      attachment: fs.createReadStream(imgPath)
+    }, (err, info) => {
+      if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
+      if (api.unsendMessage) api.unsendMessage(Reply.messageID);
+
+      if (!err && info) {
+        global.GoatBot.onReply.set(info.messageID, {
+          commandName: "help",
+          messageID: info.messageID,
+          author: event.senderID,
+          totalPages: Reply.totalPages
+        });
+
+        setTimeout(() => {
+          if (api.unsendMessage) api.unsendMessage(info.messageID);
+        }, 120000);
+      }
+    });
   }
 };
