@@ -7,18 +7,18 @@ module.exports.config = {
     // Fixed syntax error: Added quotes around "Tawhid"
     aliases: ["auravid", "auravideo", "Tawhid"],
     version: "1.0",
-    author: "Mr.King 🎭",
+    author: "Mr.King ",
     role: 0,
     category: "media",
     // Updated command prefix in guide
-    guide: { en: "Use {p}aura, {p}aura sync to count files, or comment '🔥' to get a random video." }
+    guide: { en: "Use {p}aura, {p}aura sync to count files, or comment '😈' to get a random video." }
 };
 
 module.exports.onChat = async ({ api, event }) => {
     if (event.senderID == api.getCurrentUserID()) return;
 
     const msg = event.body ? event.body.trim() : "";
-    if (msg === "🔥") {
+    if (msg === "😈") {
         return handleDriveMedia(api, event);
     }
 };
