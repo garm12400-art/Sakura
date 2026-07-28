@@ -1,5 +1,3 @@
-// Banner Image: https://files.catbox.moe/ixj7u8.jpg
-
 const axios = require("axios");
 
 const roniBotTriggers = [
@@ -12,7 +10,7 @@ const spamCooldown = new Map();
 const fallbackMessages = [
   "ilu bby😘🕊️",
   "Jani na 😢",
-  "Gumaw tumi ",
+  "k je 🙁",
   "usta you 🥱",
   "lungi chor",
   "u keda",
@@ -44,6 +42,20 @@ const extractEmojis = (text) => {
   }
   const fallbackRegex = /(\p{Extended_Pictographic}[\u{1F3FB}-\u{1F3FF}]?)/gu;
   return text.match(fallbackRegex) || [];
+};
+
+// Anti-Spam / Bumb Auto Delete Check
+const handleSpamAndDelete = (api, event) => {
+  const uid = event.senderID;
+  const currentTime = Date.now();
+  if (spamCooldown.has(uid) && currentTime - spamCooldown.get(uid) < 3000) {
+    if (api.unsendMessage) {
+      api.unsendMessage(event.messageID);
+    }
+    return true;
+  }
+  spamCooldown.set(uid, currentTime);
+  return false;
 };
 
 const checkSingleQuery = async (query) => {
@@ -121,7 +133,7 @@ const fetchApiResponse = async (text, attachments = []) => {
 module.exports.config = {
    name: "baby", 
    aliases: ["hinata", "bby", "bbu", "jan", "janu", "wifey", "bot"],
-   version: "20.0",
+   version: "20.1",
    author: "Mr.King",
    role: 0,
    category: "chat",
@@ -132,13 +144,7 @@ module.exports.config = {
 
 module.exports.onStart = async ({ api, event, args }) => {
   if (event.senderID == api.getCurrentUserID()) return;
-  
-  const uid = event.senderID;
-  const currentTime = Date.now();
-  if (spamCooldown.has(uid) && currentTime - spamCooldown.get(uid) < 3000) {
-      return api.sendMessage(makeBold("Hop bumb koros kn 😒"), event.threadID, event.messageID);
-  }
-  spamCooldown.set(uid, currentTime);
+  if (handleSpamAndDelete(api, event)) return;
 
   try {
     const mediaReply = handleMediaCheck(event.attachments);
@@ -178,13 +184,7 @@ module.exports.onStart = async ({ api, event, args }) => {
 
 module.exports.onReply = async ({ api, event, Reply }) => {
   if (event.senderID == api.getCurrentUserID()) return;
-
-  const uid = event.senderID;
-  const currentTime = Date.now();
-  if (spamCooldown.has(uid) && currentTime - spamCooldown.get(uid) < 3000) {
-      return api.sendMessage(makeBold("Hop spam koros kn 😒"), event.threadID, event.messageID);
-  }
-  spamCooldown.set(uid, currentTime);
+  if (handleSpamAndDelete(api, event)) return;
 
   try {
     const userMsg = event.body || "";
@@ -218,12 +218,7 @@ module.exports.onChat = async ({ api, event }) => {
     const lowerMessage = message.toLowerCase();
 
     if (roniBotTriggers.some(word => lowerMessage.startsWith(word))) {
-        const uid = event.senderID;
-        const currentTime = Date.now();
-        if (spamCooldown.has(uid) && currentTime - spamCooldown.get(uid) < 3000) {
-            return api.sendMessage(makeBold("Hop bumb koros kn 😒"), event.threadID, event.messageID);
-        }
-        spamCooldown.set(uid, currentTime);
+        if (handleSpamAndDelete(api, event)) return;
 
         const reactionEmoji = peacockTriggers.some(word => lowerMessage.startsWith(word)) ? "🪽" : "🪽";
         api.setMessageReaction(reactionEmoji, event.messageID, () => {}, true);
@@ -278,3 +273,4 @@ module.exports.onChat = async ({ api, event }) => {
     console.error(err);
   }
 };
+        
