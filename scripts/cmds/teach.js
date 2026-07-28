@@ -3,46 +3,51 @@ const axios = require("axios");
 const baseApiUrl = "https://baby-1-tf9x.onrender.com";
 const ADMIN_CREDENTIALS = {
   username: "Mr.king",
-  password: "nomnomnom009"
+  password: "tanindev@#90"
 };
 
 const activeTeachSessions = new Map();
 
-// Auto-delete message helper
+// Auto-delete message helper (শুধু Error/Status মেসেজের জন্য)
 const sendAutoDeleteMsg = (api, threadID, text, replyToID) => {
   api.sendMessage(text, threadID, (err, info) => {
     if (!err && info) {
       setTimeout(() => {
         api.unsendMessage(info.messageID).catch(() => {});
-      }, 15000);
+      }, 10000);
     }
   }, replyToID);
 };
 
-// Fetch random trigger from DB and prompt user
-const sendNextPromptFromDB = async (api, threadID, userID, messageID) => {
+// ইউজারকে বটের কথোপকথনের মতো প্রম্পট পাঠানো
+const sendPromptToUser = (api, threadID, userID, triggerText, messageID, mode) => {
+  const msgText = `╭┈─────── ೄྀ࿐ ˊˎ-\n┊ 👑 𝗠𝗶𝘀𝘀-𝗤𝘂𝗲𝗲𝗻 : ${triggerText}\n┊ 💌 এটার কি উত্তর দেব বলো তো?\n╰─────────────── 🚀`;
+
+  api.sendMessage(msgText, threadID, (err, info) => {
+    if (!err && info) {
+      activeTeachSessions.set(userID, {
+        currentTrigger: triggerText,
+        promptMessageID: info.messageID,
+        mode: mode
+      });
+
+      global.GoatBot.onReply.set(info.messageID, {
+        commandName: "teach",
+        type: "interactive_teach",
+        messageID: info.messageID,
+        author: userID,
+        trigger: triggerText
+      });
+    }
+  }, messageID);
+};
+
+// ডাটাবেজ থেকে র‍্যান্ডম প্রম্পট এনে পাঠানো
+const sendRandomPromptFromDB = async (api, threadID, userID, messageID, mode) => {
   try {
     const res = await axios.get(`${baseApiUrl}/api/jan/random-trigger`);
-    const randomTrigger = res.data && res.data.trigger ? res.data.trigger : "babu";
-    
-    const msgText = `╭┈─────── ೄྀ࿐ ˊˎ-\n┊ 👑 𝗠𝗶𝘀𝘀-𝗤𝘂𝗲𝗲𝗻 : ${randomTrigger}\n┊ 💌 What reply should I send?\n╰─────────────── 🚀`;
-
-    api.sendMessage(msgText, threadID, (err, info) => {
-      if (!err && info) {
-        activeTeachSessions.set(userID, {
-          currentTrigger: randomTrigger,
-          promptMessageID: info.messageID
-        });
-
-        global.GoatBot.onReply.set(info.messageID, {
-          commandName: "teach",
-          type: "interactive_teach",
-          messageID: info.messageID,
-          author: userID,
-          trigger: randomTrigger
-        });
-      }
-    }, messageID);
+    const randomTrigger = res.data && res.data.trigger ? res.data.trigger : "Hi";
+    sendPromptToUser(api, threadID, userID, randomTrigger, messageID, mode);
   } catch (err) {
     sendAutoDeleteMsg(api, threadID, "❌ Failed to load triggers from database!", messageID);
   }
@@ -51,19 +56,19 @@ const sendNextPromptFromDB = async (api, threadID, userID, messageID) => {
 module.exports.config = {
   name: "teach",
   aliases: ["addmsg"],
-  version: "4.5",
+  version: "7.0",
   author: "Mr.King",
   role: 0,
   category: "utility",
   guide: {
-    en: "{pn} -c | {pn} -on | {pn} -off | {pn} -show [trigger]"
+    en: "{pn} -c | {pn} -on | {pn} -chain | {pn} -off | {pn} -show [text]"
   }
 };
 
 module.exports.onStart = async ({ api, event, args, usersData, role }) => {
   const senderID = event.senderID;
 
-  // 🔍 -show দিয়ে ডাটাবেজের উত্তর চেক করা
+  // 🔍 -show দিয়ে রেসপন্স চেক করা
   if (args[0] === "-show") {
     const queryText = args.slice(1).join(" ").trim();
     if (!queryText) {
@@ -72,22 +77,19 @@ module.exports.onStart = async ({ api, event, args, usersData, role }) => {
 
     try {
       const res = await axios.post(`${baseApiUrl}/api/hinata`, { text: queryText });
-      
-      // ব্যাকএন্ডে রিকুয়েস্ট পাঠিয়ে ডাটা আনা
       if (res.data && res.data.message) {
         if (res.data.message === "sikai deu 🥺") {
           return sendAutoDeleteMsg(api, event.threadID, `❌ No responses found for: "${queryText}"`, event.messageID);
         }
-
         const replyMsg = `╭┈─────── ೄྀ࿐ ˊˎ-\n┊ 👑 𝗧𝗿𝗶𝗴𝗴𝗲𝗿 : ${queryText}\n┊ 💬 𝗥𝗲𝘀𝗽𝗼𝗻𝘀𝗲 : ${res.data.message}\n╰─────────────── 🚀`;
         return sendAutoDeleteMsg(api, event.threadID, replyMsg, event.messageID);
       }
     } catch (err) {
-      return sendAutoDeleteMsg(api, event.threadID, "❌ Error checking responses from server!", event.messageID);
+      return sendAutoDeleteMsg(api, event.threadID, "❌ Error checking response!", event.messageID);
     }
   }
 
-  // DB Status Check
+  // DB Connection check
   if (args[0] === "-c") {
     try {
       const res = await axios.get(`${baseApiUrl}/api/jan/list`);
@@ -118,12 +120,19 @@ module.exports.onStart = async ({ api, event, args, usersData, role }) => {
     return sendAutoDeleteMsg(api, event.threadID, "⚠️ Teach Mode is not active right now.", event.messageID);
   }
 
+  // 🎲 ১. র‍্যান্ডম মোড
   if (args[0] === "-on") {
-    sendAutoDeleteMsg(api, event.threadID, "🚀 Interactive Teach Mode ON!", event.messageID);
-    return await sendNextPromptFromDB(api, event.threadID, senderID, event.messageID);
+    sendAutoDeleteMsg(api, event.threadID, "🚀 Interactive Teach Mode Started!", event.messageID);
+    return await sendRandomPromptFromDB(api, event.threadID, senderID, event.messageID, "random");
   }
 
-  return sendAutoDeleteMsg(api, event.threadID, "Usage:\nteach -c (Check DB)\nteach -on (Start)\nteach -off (Stop)\nteach -show [text] (Check response)", event.messageID);
+  // 🔗 ২. চেইন মোড
+  if (args[0] === "-chain") {
+    sendAutoDeleteMsg(api, event.threadID, "🚀 Chain Teach Mode Started!", event.messageID);
+    return await sendRandomPromptFromDB(api, event.threadID, senderID, event.messageID, "chain");
+  }
+
+  return sendAutoDeleteMsg(api, event.threadID, "Usage:\nteach -on (Random DB Mode)\nteach -chain (Chain Response Mode)\nteach -off (Stop)\nteach -c (Check DB)\nteach -show [text]", event.messageID);
 };
 
 module.exports.onReply = async ({ api, event, Reply }) => {
@@ -138,7 +147,7 @@ module.exports.onReply = async ({ api, event, Reply }) => {
   const sessionData = activeTeachSessions.get(senderID);
   const triggerText = Reply.trigger;
 
-  // Delete previous prompt when user replies
+  // উত্তর দেওয়া মাত্রই বটের আগের প্রশ্ন মেসেজটি রিমুভ হবে
   if (sessionData && sessionData.promptMessageID) {
     api.unsendMessage(sessionData.promptMessageID).catch(() => {});
   }
@@ -152,18 +161,24 @@ module.exports.onReply = async ({ api, event, Reply }) => {
     });
 
     if (saveRes.data && saveRes.data.success) {
-      sendAutoDeleteMsg(api, event.threadID, "Successfully added ✅", event.messageID);
-      
+      // ✅ সফল হলে কোনো মেসেজ দেবে না, সরাসরি পরের প্রম্পটে চলে যাবে
       if (activeTeachSessions.has(senderID)) {
         setTimeout(async () => {
-          await sendNextPromptFromDB(api, event.threadID, senderID, event.messageID);
-        }, 1200);
+          if (sessionData.mode === "chain") {
+            const nextTrigger = saveRes.data.nextTrigger || userResponse;
+            sendPromptToUser(api, event.threadID, senderID, nextTrigger, event.messageID, "chain");
+          } else {
+            await sendRandomPromptFromDB(api, event.threadID, senderID, event.messageID, "random");
+          }
+        }, 800);
       }
     } else {
-      sendAutoDeleteMsg(api, event.threadID, "❌ Failed to save teach response!", event.messageID);
+      // ❌ ব্যর্থ হলে শুধু মেসেজ দেবে
+      sendAutoDeleteMsg(api, event.threadID, "❌ Failed to save response!", event.messageID);
     }
   } catch (err) {
-    sendAutoDeleteMsg(api, event.threadID, "❌ Error saving teach data to database!", event.messageID);
+    // ❌ এরর হলেও মেসেজ দেবে
+    sendAutoDeleteMsg(api, event.threadID, "❌ Server error! Could not save data.", event.messageID);
   }
 };
-          
+  
