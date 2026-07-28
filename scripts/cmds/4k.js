@@ -1,95 +1,107 @@
 const axios = require("axios");
-const fs = require("fs-extra");
-const path = require("path");
-
-const apiurl =
-  "https://raw.githubusercontent.com/Saim-x69x/sakura/main/ApiUrl.json";
-
-async function getApiUrl() {
-  const res = await axios.get(apiurl);
-  return res.data.apiv4;
-}
 
 module.exports = {
   config: {
     name: "4k",
-    aliases: ["upscale"],
-    version: "1.0",
-    author: "Saimx69x (Api by fahim)",
+    version: "1.0.0",
+    author: "Mr.King 🎭",
+    countDown: 5,
+    role: 0,
+    shortDescription: "Enhance image to 4K (VIP Only)",
+    longDescription: "Reply to an image with 4k to get upscale options",
     category: "image",
-    shortDescription: "Upscale image to 4K",
-    longDescription: "Upscales replied or attached image to 4K quality",
-    guide: "{pn} (reply to image)"
+    guide: "{pn} (reply to an image)"
   },
 
-  onStart: async function ({ api, event }) {
-    let imageUrl = "";
-    let processingMsg;
+  onStart: async function ({ api, event, usersData }) {
+    const uid = event.senderID;
+    const react = (emoji) => api.setMessageReaction(emoji, event.messageID, () => {}, true);
+
+    // VIP Validation Check
+    const user = await usersData.get(uid);
+    const vipData = user?.data?.vip;
+
+    if (!vipData || !vipData.expires || vipData.expires <= Date.now()) {
+      react("❌");
+      return api.sendMessage(
+        "• ❌ 𝑻𝒉𝒊𝒔 𝒄𝒐𝒎𝒎𝒂𝒏𝒅 𝒊𝒔 𝒐𝒏𝒍𝒚 𝒇𝒐𝒓 👑 𝑽𝑰𝑷 𝒖𝒔𝒆𝒓𝒔!\n\n" +
+        "📌 𝑼𝒔𝒆 {𝒑}𝒗𝒊𝒑 𝒕𝒐 𝒄𝒉𝒆𝒄𝒌 𝒗𝒊𝒑 𝒑𝒓𝒊𝒄𝒆𝒔 𝒂𝒏𝒅 𝒔𝒖𝒃𝒔𝒄𝒓𝒊𝒃𝒆.",
+        event.threadID
+      );
+    }
+
+    const imageUrl = event.messageReply?.attachments[0]?.url;
+
+    if (!imageUrl || event.messageReply.attachments[0].type !== "photo") {
+      react("🖼️");
+      return api.sendMessage("🖼️ | Please reply to an image.", event.threadID, event.messageID);
+    }
+
+    react("👑");
+
+    const menuMessage = 
+      `✨ ─── [ 𝟒𝐊 𝐄𝐍𝐇𝐀𝐍𝐂𝐄𝐑 ] ─── ✨\n\n` +
+      `Please reply to this message with a number:\n\n` +
+      `1️⃣. Make 4k picture\n` +
+      `2️⃣. DSLR picture\n` +
+      `3️⃣. Natural picture\n\n` +
+      `✨ ───────────────── ✨`;
+
+    return api.sendMessage(menuMessage, event.threadID, (err, info) => {
+      if (err) return;
+      global.GoatBot.onReply.set(info.messageID, {
+        commandName: this.config.name,
+        messageID: info.messageID,
+        author: uid,
+        imageUrl: imageUrl
+      });
+    }, event.messageID);
+  },
+
+  onReply: async function ({ api, event, Reply }) {
+    const { author, imageUrl } = Reply;
+    const { senderID, body, threadID, messageID } = event;
+
+    if (senderID !== author) {
+      return api.sendMessage("❌ | This menu is not for you!", threadID, messageID);
+    }
+
+    const react = (emoji) => api.setMessageReaction(emoji, messageID, () => {}, true);
+
+    let prompt = "";
+
+    if (body === "1") {
+      prompt = "enhance to 4k ultra realistic, high resolution, ultra detailed photo";
+    } else if (body === "2") {
+      prompt = "DSLR photography, sharp focus, 8k resolution, professional camera lighting, clear details";
+    } else if (body === "3") {
+      prompt = "natural look, smooth skin, clear lighting, realistic color balance, HD quality";
+    } else {
+      react("⚠️");
+      return api.sendMessage("⚠️ | Invalid selection! Please reply with 1, 2, or 3.", threadID, messageID);
+    }
+
+    react("⏳");
 
     try {
-      if (event.messageReply?.attachments?.length) {
-        imageUrl = event.messageReply.attachments[0].url;
-      } else if (event.attachments?.length) {
-        imageUrl = event.attachments[0].url;
-      } else {
-        return api.sendMessage(
-          "❌ Please reply to or attach an image.",
-          event.threadID,
-          event.messageID
-        );
-      }
+      const apiUrl = `https://azadx69x.is-a.dev/api/editor?url=${encodeURIComponent(imageUrl)}&prompt=${encodeURIComponent(prompt)}`;
 
-      processingMsg = await api.sendMessage(
-        "⏳ Upscaling image to 4K, please wait...",
-        event.threadID,
-        null,
-        event.messageID
-      );
+      const response = await axios.get(apiUrl, { responseType: "stream" });
 
-      const BASE_API = await getApiUrl();
-      const apiUrl = `${BASE_API}/4k?url=${encodeURIComponent(imageUrl)}`;
+      react("✅");
 
-      const res = await axios.get(apiUrl);
-
-      if (!res.data?.image) throw new Error("Invalid API response");
-
-      const imgPath = path.join(__dirname, "cache", `${Date.now()}_4k.jpg`);
-
-      const imgRes = await axios.get(res.data.image, {
-        responseType: "arraybuffer"
-      });
-
-      await fs.ensureDir(path.dirname(imgPath));
-      await fs.writeFile(imgPath, imgRes.data);
-
-      await api.sendMessage(
-        {
-          body: "✅ Image upscaled to 4K successfully!",
-          attachment: fs.createReadStream(imgPath)
-        },
-        event.threadID,
-        null,
-        event.messageID
-      );
-
-      if (processingMsg?.messageID) {
-        api.unsendMessage(processingMsg.messageID);
-      }
-
-      await fs.remove(imgPath);
+      api.sendMessage({
+        body: `✨ ───────────────── ✨\n` +
+              `ₕₑᵣₑ ᵢₛ ⵇₒᵤᵣ ₑₙₕₐₙcₑd ᵢ☨ₐgₑ Fᵣ₏ₘ 𝔐𝔯.𝔎ᵢ𝔫𝔤 ☠️✌🏼\n` +
+              `📌 Mode: ${body === "1" ? "4K Picture" : body === "2" ? "DSLR Picture" : "Natural Picture"}\n` +
+              `✨ ───────────────── ✨`,
+        attachment: response.data
+      }, threadID, messageID);
 
     } catch (error) {
-      console.error("4k command error:", error);
-
-      if (processingMsg?.messageID) {
-        api.unsendMessage(processingMsg.messageID);
-      }
-
-      api.sendMessage(
-        "❌ Failed to upscale image. Please try again later.",
-        event.threadID,
-        event.messageID
-      );
+      console.error(error);
+      react("❌");
+      api.sendMessage("❌ | Failed to process the image.", threadID, messageID);
     }
   }
 };
