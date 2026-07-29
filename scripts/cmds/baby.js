@@ -8,17 +8,32 @@ const peacockTriggers = ["baby", "bby", "jan", "জান", "জানু", "ব
 const spamCooldown = new Map();
 
 const fallbackMessages = [
-  "ilu bby😘🕊️",
-  "Jani na 😢",
-  "k je 🙁",
-  "usta you 🥱",
-  "lungi chor",
-  "u keda",
-  "chop Uganda pathai dimu",
-  "ale le le le"
+  "কথা কম কও, মুখে মাস্ক পইরা ঘোড়ো 😷🔥",
+  "মাথাডা একদম আউলায়া দিলা তো ভাই 😵‍💫💭",
+  "এমবি নাই ভাই, এমবি কিনে দে তারপর কথা কমু 📱💸",
+  "পড়ালেখা বাদ দিয়া বটের লগে আলু ছুলতে আইছো? 🥔📚",
+  "এক চ্যাপা মাইরা একবারে উগান্ডা পাঠায়া দিমু ✈️🐒",
+  "চা খাইবা? না খাইলে ভাগো তো এখান থেকে ☕🧹",
+  "তর কথা শুইন্যা আমার ফ্রিজের পানিও গরম হয়া গেছে 🧊🔥",
+  "আমারে কি গুগল পাইছ নাকি? সব প্রশ্নের উত্তর পাইবা 🤖❌",
+  "হুদাই চিল্লাইও না, একটু পপকন খাইয়া ঘুম দাও 🍿😴",
+  "আরে ভাই থামো, এক্টু দম নিতে দাও আমারে 😮‍💨✋",
+  "কি বললা বুঝি নাই, আরেকবার কও তো বুড়া দাদু 👵🏻👓",
+  "বিকাশে ৫০০ টাকা পাঠাও, তারপর সুন্দর উত্তর দিমু 🤑💳",
+  "তোমার কথা শুইন্যা আমার ব্যাটারি ১০% কম্যা গেল 🔋🪫",
+  "আহা কী প্রেম! যেন শাহজাহান আর মমতাজের নাতনি 🕌❤️",
+  "থামো তো ভাই! মাথায় হাত দিয়া একটু ভাবতে দাও 🤯🤔",
+  "লুঙ্গি সামলায়া কথা কও, বাতাস ছাড়লে উইড়া যাইবা 🌬️🩲",
+  "অতিরিক্ত ঢং স্বাস্থ্যের জন্য ক্ষতিকর baby 🍼😏",
+  "ইসস! এতো ঢং করো কেন? একদম চড় খাইতে ইচ্ছে করতাছে 🤏🏻🐸"
 ];
 
 const baseApiUrl = "https://baby-1-tf9x.onrender.com";
+
+const adminCredentials = {
+  username: "Mr.king",
+  password: "tanindev@#90"
+};
 
 const makeBold = (text) => {
   if (!text) return "";
@@ -68,6 +83,17 @@ const checkSingleQuery = async (query) => {
   return null;
 };
 
+const getRandomTeachResponse = async () => {
+  try {
+    const res = await axios.get(`${baseApiUrl}/api/jan/random-trigger`);
+    if (res.data && res.data.trigger) {
+      const resp = await checkSingleQuery(res.data.trigger);
+      if (resp) return resp;
+    }
+  } catch {}
+  return fallbackMessages[Math.floor(Math.random() * fallbackMessages.length)];
+};
+
 const handleMediaCheck = (attachments) => {
   if (attachments && attachments.length > 0) {
     const type = attachments[0].type;
@@ -84,7 +110,23 @@ const handleMediaCheck = (attachments) => {
   return null;
 };
 
-const getFallbackResponse = () => fallbackMessages[Math.floor(Math.random() * fallbackMessages.length)];
+const autoTeachAndGetResponse = async (triggerText) => {
+  const randomResponse = await getRandomTeachResponse();
+  if (triggerText && triggerText.length >= 2) {
+    try {
+      await axios.post(`${baseApiUrl}/api/jan/teach`, {
+        trigger: triggerText,
+        responses: randomResponse
+      }, {
+        headers: {
+          username: adminCredentials.username,
+          password: adminCredentials.password
+        }
+      });
+    } catch (e) {}
+  }
+  return randomResponse;
+};
 
 const fetchApiResponse = async (text, attachments = []) => {
   try {
@@ -110,9 +152,36 @@ const fetchApiResponse = async (text, attachments = []) => {
       }
     }
 
-    return getFallbackResponse();
+    return await autoTeachAndGetResponse(text);
   } catch {
-    return getFallbackResponse();
+    return await autoTeachAndGetResponse(text);
+  }
+};
+
+const getDatabaseStats = async () => {
+  try {
+    const res = await axios.get(`${baseApiUrl}/api/jan/stats`, {
+      headers: {
+        username: adminCredentials.username,
+        password: adminCredentials.password
+      },
+      timeout: 5000
+    });
+    if (res.data && res.data.success) {
+      const teachCount = res.data.totalTeach || 0;
+      const responseCount = res.data.totalResponses || 0;
+      const dataSize = res.data.dataSize || null;
+
+      let msg = `🐤 | Total Teach = ${teachCount}\n♻️ | Total Response = ${responseCount}`;
+      if (dataSize) {
+        msg += `\n💾 | Database Size = ${dataSize}`;
+      }
+      return msg;
+    } else {
+      throw new Error("API response error");
+    }
+  } catch {
+    return `🐤 | Total Teach = api off\n♻️ | Total Response = api off\nServer is having error...server ki maka vosra 👅💦`;
   }
 };
 
@@ -139,6 +208,14 @@ module.exports.onStart = async ({ api, event, args }) => {
   spamCooldown.set(uid, currentTime);
 
   try {
+    if (args && args.length > 0) {
+      const fullCmd = args.join(" ").toLowerCase();
+      if (fullCmd === "list" || fullCmd === "datacheck") {
+        const stats = await getDatabaseStats();
+        return api.sendMessage(makeBold(stats), event.threadID, event.messageID);
+      }
+    }
+
     const mediaReply = handleMediaCheck(event.attachments);
     if (mediaReply) {
       return api.sendMessage(makeBold(mediaReply), event.threadID, event.messageID);
@@ -147,12 +224,6 @@ module.exports.onStart = async ({ api, event, args }) => {
     if (!args || args.length === 0) {
       const ran = ["Bolo baby", "I love you", "Welcome to Mr.King Chatbot! 😎"];
       return api.sendMessage(makeBold(ran[Math.floor(Math.random() * ran.length)]), event.threadID, event.messageID);
-    }
-
-    const inputCmd = args[0].toLowerCase();
-
-    if (inputCmd === "teach" || inputCmd === "add" || inputCmd === "remove") {
-      return api.sendMessage(makeBold("❌ | You don't have permission to teach! This is reserved for admins only."), event.threadID, event.messageID);
     }
 
     const userMsg = args.join(" ");
@@ -164,7 +235,8 @@ module.exports.onStart = async ({ api, event, args }) => {
           commandName: module.exports.config.name,
           type: "reply",
           messageID: info.messageID,
-          author: event.senderID
+          author: event.senderID,
+          triggerText: userMsg
         });
       }
     }, event.messageID);
@@ -186,8 +258,25 @@ module.exports.onReply = async ({ api, event, Reply }) => {
 
   try {
     const userMsg = event.body || "";
+
+    if (Reply && Reply.type === "reply" && userMsg.trim()) {
+      const previousBotMsg = Reply.triggerText || "";
+      if (previousBotMsg && previousBotMsg.length >= 2) {
+        try {
+          await axios.post(`${baseApiUrl}/api/jan/teach`, {
+            trigger: previousBotMsg,
+            responses: userMsg
+          }, {
+            headers: {
+              username: adminCredentials.username,
+              password: adminCredentials.password
+            }
+          });
+        } catch (e) {}
+      }
+    }
+
     const mediaReply = handleMediaCheck(event.attachments);
-    
     let botResponse = mediaReply;
     if (!botResponse) {
       botResponse = await fetchApiResponse(userMsg, event.attachments || []);
@@ -199,7 +288,8 @@ module.exports.onReply = async ({ api, event, Reply }) => {
           commandName: module.exports.config.name,
           type: "reply",
           messageID: info.messageID,
-          author: event.senderID
+          author: event.senderID,
+          triggerText: userMsg
         });
       }
     }, event.messageID);
@@ -214,6 +304,11 @@ module.exports.onChat = async ({ api, event }) => {
   try {
     const message = event.body || "";
     const lowerMessage = message.toLowerCase();
+
+    if (lowerMessage === "baby list" || lowerMessage === "baby datacheck") {
+      const stats = await getDatabaseStats();
+      return api.sendMessage(makeBold(stats), event.threadID, event.messageID);
+    }
 
     if (roniBotTriggers.some(word => lowerMessage.startsWith(word))) {
         const uid = event.senderID;
@@ -234,6 +329,11 @@ module.exports.onChat = async ({ api, event }) => {
             }
         }
 
+        if (userText.toLowerCase() === "list" || userText.toLowerCase() === "datacheck") {
+          const stats = await getDatabaseStats();
+          return api.sendMessage(makeBold(stats), event.threadID, event.messageID);
+        }
+
         if (!userText) {
           const ranPrompt = [
             "Bolo baby, what do you want to say?",
@@ -249,7 +349,8 @@ module.exports.onChat = async ({ api, event }) => {
                 commandName: module.exports.config.name,
                 type: "reply",
                 messageID: info.messageID,
-                author: event.senderID
+                author: event.senderID,
+                triggerText: chosenText
               });
             }
           }, event.messageID);
@@ -267,7 +368,8 @@ module.exports.onChat = async ({ api, event }) => {
               commandName: module.exports.config.name,
               type: "reply",
               messageID: info.messageID,
-              author: event.senderID
+              author: event.senderID,
+              triggerText: userText
             });
           }
         }, event.messageID);
@@ -275,4 +377,5 @@ module.exports.onChat = async ({ api, event }) => {
   } catch (err) {
     console.error(err);
   }
-};  
+};
+      
