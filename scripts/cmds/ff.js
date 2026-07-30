@@ -13,7 +13,7 @@ module.exports = {
   config: {
     name: "ff",
     aliases: ["ffedit", "freefire"],
-    version: "2.0.0",
+    version: "2.1.1",
     author: "Mr.King",
     countDown: 5,
     role: 0,
@@ -36,6 +36,11 @@ module.exports = {
       return message.reply("❌ Please provide a search query! Example: !ff rayalo");
     }
 
+    // Reaction Loading Emoji (⏳)
+    if (api.setMessageReaction) {
+      api.setMessageReaction("⏳", event.messageID, () => {}, true);
+    }
+
     // Search query with 4K edit quality keywords
     const fullSearch = `free fire ${searchQuery} 4k edit`;
 
@@ -44,6 +49,7 @@ module.exports = {
       const videos = res.data?.data?.videos;
 
       if (!videos || videos.length === 0) {
+        if (api.setMessageReaction) api.setMessageReaction("❌", event.messageID, () => {}, true);
         return message.reply(`❌ No 4K Free Fire video found for: "${searchQuery}"`);
       }
 
@@ -67,22 +73,21 @@ module.exports = {
       const videoBuffer = await axios.get(videoUrl, { responseType: "arraybuffer" });
       fs.writeFileSync(cachePath, Buffer.from(videoBuffer.data));
 
-      // Send ONLY video attachment without text body
+      // Reaction Done Emoji (🌩️)
+      if (api.setMessageReaction) {
+        api.setMessageReaction("✨", event.messageID, () => {}, true);
+      }
+
+      // Send ONLY video attachment without text body & NO AUTO DELETE
       return message.reply({
         attachment: fs.createReadStream(cachePath)
-      }, (err, info) => {
+      }, (err) => {
         if (fs.existsSync(cachePath)) fs.unlinkSync(cachePath);
-
-        if (!err && info && info.messageID) {
-          setTimeout(() => {
-            if (api.unsendMessage) api.unsendMessage(info.messageID);
-          }, 120000); // Auto delete video in 2 minutes
-        }
       });
 
     } catch (err) {
+      if (api.setMessageReaction) api.setMessageReaction("❌", event.messageID, () => {}, true);
       return message.reply("❌ Failed to download 4K video. Try again!");
     }
   }
 };
-        
