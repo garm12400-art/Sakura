@@ -1,5 +1,6 @@
 // Banner Image: https://files.catbox.moe/ixj7u8.jpg
 
+
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
@@ -10,7 +11,7 @@ module.exports = {
   config: {
     name: "fun",
     aliases: ["👀"],
-    version: "1.0.2",
+    version: "1.0.3",
     author: "Mr.King 🎭",
     countDown: 5,
     role: 0,
@@ -54,11 +55,12 @@ async function handleSync(api, event) {
     api.setMessageReaction("✅", messageID, () => {}, true);
     return api.sendMessage(report, threadID, messageID);
   } catch (err) {
+    api.setMessageReaction("❌", messageID, () => {}, true);
     api.sendMessage("❌ Error syncing drive folder.", threadID, messageID);
   }
 }
 
-// র্যান্ডম ভিডিও পাঠানোর ফাংশন (কোনো টেক্সট ছাড়া)
+// র্যান্ডম ভিডিও পাঠানোর ফাংশন
 async function sendRandomVideo(api, event) {
   const { threadID, messageID } = event;
   try {
@@ -68,12 +70,19 @@ async function sendRandomVideo(api, event) {
     const matches = [...response.data.matchAll(/\/file\/d\/([a-zA-Z0-9_-]+)\/view/g)];
     
     if (matches.length === 0) {
-      return api.sendMessage("❌ No videos found in drive.", threadID);
+      api.setMessageReaction("❌", messageID, () => {}, true);
+      return api.sendMessage("❌ No videos found in drive.", threadID, messageID);
     }
 
     const randomFile = matches[Math.floor(Math.random() * matches.length)][1];
     const downloadUrl = `https://docs.google.com/uc?export=download&id=${randomFile}`;
-    const filePath = path.join(__dirname, "cache", `fun_${randomFile}.mp4`);
+    
+    const cacheDir = path.join(__dirname, "cache");
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
+
+    const filePath = path.join(cacheDir, `fun_${randomFile}.mp4`);
 
     const writer = fs.createWriteStream(filePath);
     const downloadResponse = await axios({
@@ -84,20 +93,26 @@ async function sendRandomVideo(api, event) {
 
     downloadResponse.data.pipe(writer);
 
-    writer.on("finish", async () => {
-      // শুধুমাত্র ভিডিও ফাইল পাঠানো হচ্ছে, কোনো body বা টেক্সট নেই
-      await api.sendMessage({
+    writer.on("finish", () => {
+      api.sendMessage({
         attachment: fs.createReadStream(filePath)
-      }, threadID, () => {
+      }, threadID, (err) => {
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      });
-      // 👈 [FIXED] ভিডিও পাঠানো শেষ হলে এখন 💨 রিয়্যাকশন দিবে
-      api.setMessageReaction("💨", messageID, () => {}, true);
+        if (!err) {
+          api.setMessageReaction("🌩️", messageID, () => {}, true);
+        } else {
+          api.setMessageReaction("❌", messageID, () => {}, true);
+        }
+      }, messageID);
+    });
+
+    writer.on("error", (err) => {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      api.setMessageReaction("❌", messageID, () => {}, true);
     });
 
   } catch (err) {
     console.error(err);
     api.setMessageReaction("❌", messageID, () => {}, true);
   }
-    }
-      
+}
