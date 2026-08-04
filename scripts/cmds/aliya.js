@@ -1,7 +1,7 @@
 const axios = require("axios");
 
 const roniBotTriggers = [
-  "baby", "bby", "babu", "bbu", "jan", "bot", "জান", "জানু", "বেবি", "wifey", "hinata", "king", "mrking"
+  "baby", "bby", "babu", "bbu", "jan", "bot", "জান", "জানু", "বেবি", "wifey", "aliya", "king", "mrking"
 ];
 
 const peacockTriggers = ["baby", "bby", "jan", "জান", "জানু", "বেবি"];
