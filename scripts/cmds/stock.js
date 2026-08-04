@@ -1,7 +1,7 @@
 module.exports = {
 	config: {
 		name: "stock",
-		aliases: ["market", "invest"],
+		aliases: ["invest"],
 		version: "4.0.0",
 		author: "Mr.King",
 		countDown: 5,
